@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block topbar_title %}Admin Dashboard{% endblock %}
+
+{% block sidebar_nav %}
+<div class="nav-label">Admin Panel</div>
+<div class="nav-item active" onclick="showSection('overview')"><span class="nav-icon">📊</span> Overview</div>
+<div class="nav-item" onclick="showSection('students')"><span class="nav-icon">🎓</span> Students</div>
+<div class="nav-item" onclick="showSection('companies')"><span class="nav-icon">🏢</span> Companies</div>
+<div class="nav-item" onclick="showSection('applications')"><span class="nav-icon">📋</span> Applications</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stat-grid" style="margin-bottom:28px">
+  <div class="stat-card" style="--c:var(--accent)">
+    <div class="stat-icon">🎓</div>
+    <div class="stat-value" id="stat-students">—</div>
+    <div class="stat-label">Students</div>
+  </div>
+  <div class="stat-card" style="--c:var(--info)">
+    <div class="stat-icon">🏢</div>
+    <div class="stat-value" id="stat-companies">—</div>
+    <div class="stat-label">Companies</div>
+  </div>
+  <div class="stat-card" style="--c:var(--success)">
+    <div class="stat-icon">💼</div>
+    <div class="stat-value" id="stat-jobs">—</div>
+    <div class="stat-label">Jobs</div>
+  </div>
+  <div class="stat-card" style="--c:var(--warning)">
+    <div class="stat-icon">📋</div>
+    <div class="stat-value" id="stat-apps">—</div>
+    <div class="stat-label">Applications</div>
+  </div>
+</div>
+
+<!-- ── Overview Section ──────────────────────────────────── -->
+<div id="sec-overview">
+  <div class="page-header">
+    <h2>Platform Overview</h2>
+    <p>Campus recruitment analytics at a glance</p>
+  </div>
+  <div class="two-col">
+    <!-- Application Status Breakdown -->
+    <div class="card">
+      <div class="section-title">📊 Application Status Breakdown</div>
+      <div id="status-breakdown">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <!-- Top Hiring Companies -->
+    <div class="card">
+      <div class="section-title">🏆 Top Hiring Companies</div>
+      <div id="top-companies">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="section-title">🏛 Applications by Department</div>
+    <div id="dept-stats">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Students Section ──────────────────────────────────── -->
+<div id="sec-students" style="display:none">
+  <div class="page-header">
+    <h2>All Students</h2>
+    <p>Browse and search registered students</p>
+  </div>
+  <div class="filter-bar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="form-control" id="student-search" placeholder="Search by name or department…"
+        oninput="debounceStudentSearch()">
+    </div>
+  </div>
+  <div id="students-container">
+    <div class="spinner"></div>
+  </div>
+  <div class="pagination" id="students-pagination"></div>
+</div>
+
+<!-- ── Companies Section ─────────────────────────────────── -->
+<div id="sec-companies" style="display:none">
+  <div class="page-header">
+    <h2>All Companies</h2>
+    <p>Registered companies on the platform</p>
+  </div>
+  <div id="companies-container">
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<!-- ── Applications Section ──────────────────────────────── -->
+<div id="sec-applications" style="display:none">
+  <div class="page-header">
+    <h2>All Applications</h2>
+    <p>Complete application log across the platform</p>
+  </div>
+  <div id="all-apps-container">
+    <div class="spinner"></div>
+  </div>
+  <div class="pagination" id="apps-pagination"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let studentSearchTimer;
+  let studentPage = 1;
+  let appsPage = 1;
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    const u = JSON.parse(localStorage.getItem('cc_user') || 'null');
+    if (!u || u.role !== 'ADMIN') { logout(); return; }
+    await loadStats();
+    showSection('overview');
+  });
+
+  function showSection(name) {
+    ['overview', 'students', 'companies', 'applications'].forEach(s => {
+      document.getElementById('sec-' + s).style.display = s === name ? 'block' : 'none';
+    });
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    event && event.currentTarget && event.currentTarget.classList.add('active');
+    if (name === 'students') loadStudents();
+    if (name === 'companies') loadCompanies();
+    if (name === 'applications') loadAllApps();
+  }
+
+  async function loadStats() {
+    const r = await apiFetch('/admin/stats');
+    if (!r) return;
+    const data = await r.json();
+
+    // Overview cards
+    document.getElementById('stat-students').textContent = data.overview.total_students;
+    document.getElementById('stat-companies').textContent = data.overview.total_companies;
+    document.getElementById('stat-jobs').textContent = data.overview.total_jobs;
+    document.getElementById('stat-apps').textContent = data.overview.total_apps;
+
+    // Status breakdown
+    const s = data.application_status;
+    const total = s.applied + s.under_review + s.selected + s.rejected || 1;
+    document.getElementById('status-breakdown').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${[
+        ['Applied', s.applied, 'var(--info)'],
+        ['Under Review', s.under_review, 'var(--warning)'],
+        ['Selected', s.selected, 'var(--success)'],
+        ['Rejected', s.rejected, 'var(--danger)']
+      ].map(([label, count, color]) => `
+      <div>
+        <div class="flex justify-between" style="margin-bottom:5px">
+          <span style="font-size:.85rem;font-weight:600">${label}</span>
+          <span style="font-size:.85rem;color:var(--text-muted)">${count}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${(count / total) * 100}%;background:${color}"></div></div>
+      </div>`).join('')}
+    </div>`;
+
+    // Top companies
+    if (data.top_hiring_companies.length) {
+      const maxH = data.top_hiring_companies[0].hires || 1;
+      document.getElementById('top-companies').innerHTML = `
+    <div class="bar-chart">
+      ${data.top_hiring_companies.map(c => `
+      <div class="bar-item">
+        <div class="bar-label">${c.name}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(c.hires / maxH) * 100}%">${c.hires}</div></div>
+      </div>`).join('')}
+    </div>`;
+    } else {
+      document.getElementById('top-companies').innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted)">No hiring data yet</p>';
+    }
+
+    // Dept stats
+    if (data.dept_stats.length) {
+      const maxD = data.dept_stats[0].count || 1;
+      document.getElementById('dept-stats').innerHTML = `
+    <div class="bar-chart">
+      ${data.dept_stats.map(d => `
+      <div class="bar-item">
+        <div class="bar-label">${d.dept}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(d.count / maxD) * 100}%">${d.count}</div></div>
+      </div>`).join('')}
+    </div>`;
+    } else {
+      document.getElementById('dept-stats').innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted)">No application data yet</p>';
+    }
+  }
+
+  function debounceStudentSearch() {
+    clearTimeout(studentSearchTimer);
+    studentSearchTimer = setTimeout(() => { studentPage = 1; loadStudents(); }, 350);
+  }
+
+  async function loadStudents(page = studentPage) {
+    studentPage = page;
+    const search = document.getElementById('student-search').value.trim();
+    const params = new URLSearchParams({ page });
+    if (search) params.append('search', search);
+
+    const cont = document.getElementById('students-container');
+    cont.innerHTML = '<div class="spinner"></div>';
+    const r = await apiFetch('/admin/students?' + params);
+    if (!r) return;
+    const data = await r.json();
+
+    if (!data.students.length) {
+      cont.innerHTML = '<div class="empty-state"><div class="empty-icon">🎓</div><p>No students found.</p></div>';
+      document.getElementById('students-pagination').innerHTML = '';
+      return;
+    }
+
+    cont.innerHTML = `
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Name</th><th>Email</th><th>Department</th><th>CGPA</th><th>Phone</th><th>Age</th>
+      </tr></thead>
+      <tbody>
+        ${data.students.map(s => `
+        <tr>
+          <td><strong>${s.full_name}</strong></td>
+          <td style="font-size:.82rem">${s.email || '—'}</td>
+          <td>${s.department}</td>
+          <td><span style="font-weight:700;color:var(--accent)">${s.cgpa}</span></td>
+          <td style="font-size:.82rem">${s.phone}</td>
+          <td>${s.age}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+    renderPagination(Math.ceil(data.total / 20), page, 'loadStudents', 'students-pagination');
+  }
+
+  async function loadCompanies() {
+    const cont = document.getElementById('companies-container');
+    cont.innerHTML = '<div class="spinner"></div>';
+    const r = await apiFetch('/admin/companies');
+    if (!r) return;
+    const companies = await r.json();
+
+    if (!companies.length) {
+      cont.innerHTML = '<div class="empty-state"><div class="empty-icon">🏢</div><p>No companies registered yet.</p></div>';
+      return;
+    }
+
+    cont.innerHTML = `<div class="job-grid">${companies.map(c => `
+  <div class="job-card">
+    <div class="flex items-center gap-3" style="margin-bottom:12px">
+      <div class="company-logo-placeholder">${(c.company_name || 'C')[0].toUpperCase()}</div>
+      <div>
+        <div style="font-weight:700;font-size:.95rem">${c.company_name}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary)">${c.industry}</div>
+      </div>
+    </div>
+    <div class="job-meta">
+      <span class="job-meta-item">📍 ${c.location}</span>
+      <span class="job-meta-item">📧 ${c.email || '—'}</span>
+      <span class="job-meta-item">💼 ${c.job_count} jobs</span>
+    </div>
+  </div>`).join('')}</div>`;
+  }
+
+  async function loadAllApps(page = appsPage) {
+    appsPage = page;
+    const cont = document.getElementById('all-apps-container');
+    cont.innerHTML = '<div class="spinner"></div>';
+    const r = await apiFetch('/admin/applications?page=' + page);
+    if (!r) return;
+    const data = await r.json();
+
+    if (!data.applications.length) {
+      cont.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No applications found.</p></div>';
+      document.getElementById('apps-pagination').innerHTML = '';
+      return;
+    }
+
+    cont.innerHTML = `
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Student</th><th>Job</th><th>Company</th><th>Applied On</th><th>Status</th>
+      </tr></thead>
+      <tbody>
+        ${data.applications.map(a => `
+        <tr>
+          <td><strong>${a.student_name || '—'}</strong></td>
+          <td>${a.job_title || '—'}</td>
+          <td>${a.company_name || '—'}</td>
+          <td>${fmtDate(a.application_date)}</td>
+          <td>${statusBadge(a.status)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+    renderPagination(Math.ceil(data.total / 20), page, 'loadAllApps', 'apps-pagination');
+  }
+
+  function renderPagination(total, current, fn, elId) {
+    const el = document.getElementById(elId);
+    if (total <= 1) { el.innerHTML = ''; return; }
+    let html = '';
+    if (current > 1) html += `<button class="page-btn" onclick="${fn}(${current - 1})">‹</button>`;
+    for (let i = 1; i <= total; i++) {
+      html += `<button class="page-btn ${i === current ? 'active' : ''}" onclick="${fn}(${i})">${i}</button>`;
+    }
+    if (current < total) html += `<button class="page-btn" onclick="${fn}(${current + 1})">›</button>`;
+    el.innerHTML = html;
+  }
+</script>
+{% endblock %}

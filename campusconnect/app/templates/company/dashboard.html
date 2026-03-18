@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}Company Dashboard{% endblock %}
+{% block topbar_title %}Company Dashboard{% endblock %}
+
+{% block sidebar_nav %}
+<div class="nav-label">Main</div>
+<div class="nav-item active" onclick="showSection('jobs')"><span class="nav-icon">💼</span> My Jobs</div>
+<div class="nav-item" onclick="showSection('applicants')"><span class="nav-icon">👥</span> Applicants</div>
+<div class="nav-item" onclick="showSection('profile')"><span class="nav-icon">🏢</span> Company Profile</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stat-grid" style="margin-bottom:28px">
+  <div class="stat-card" style="--c:var(--accent)">
+    <div class="stat-icon">💼</div>
+    <div class="stat-value" id="stat-jobs">—</div>
+    <div class="stat-label">Jobs Posted</div>
+  </div>
+  <div class="stat-card" style="--c:var(--info)">
+    <div class="stat-icon">📥</div>
+    <div class="stat-value" id="stat-apps">—</div>
+    <div class="stat-label">Applications</div>
+  </div>
+  <div class="stat-card" style="--c:var(--success)">
+    <div class="stat-icon">✅</div>
+    <div class="stat-value" id="stat-selected">—</div>
+    <div class="stat-label">Selected</div>
+  </div>
+  <div class="stat-card" style="--c:var(--warning)">
+    <div class="stat-icon">⏳</div>
+    <div class="stat-value" id="stat-review">—</div>
+    <div class="stat-label">Under Review</div>
+  </div>
+</div>
+
+<!-- ── Jobs Section ──────────────────────────────────────── -->
+<div id="sec-jobs">
+  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h2>My Job Postings</h2>
+      <p>Manage your posted positions</p>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('post-job-modal')">➕ Post New Job</button>
+  </div>
+  <div id="jobs-container"><div class="spinner"></div></div>
+</div>
+
+<!-- ── Applicants Section ────────────────────────────────── -->
+<div id="sec-applicants" style="display:none">
+  <div class="page-header">
+    <h2>Applicants</h2>
+    <p>Select a job to view its applicants</p>
+  </div>
+  <div style="margin-bottom:18px">
+    <select class="form-control" id="applicant-job-select" onchange="loadApplicants()" style="max-width:400px">
+      <option value="">Select a job…</option>
+    </select>
+  </div>
+  <div id="applicants-container"></div>
+</div>
+
+<!-- ── Profile Section ───────────────────────────────────── -->
+<div id="sec-profile" style="display:none">
+  <div class="page-header">
+    <h2>Company Profile</h2>
+    <p>Your company information</p>
+  </div>
+  <div id="profile-container"><div class="spinner"></div></div>
+</div>
+
+<!-- Post Job Modal -->
+<div class="modal-overlay" id="post-job-modal">
+  <div class="modal modal-lg">
+    <div class="modal-title">📝 Post a New Job</div>
+    <div class="form-group">
+      <label class="form-label">Job Title</label>
+      <input type="text" id="pj-title" class="form-control" placeholder="e.g. Software Engineer Intern">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Salary (₹/year)</label>
+        <input type="number" id="pj-salary" class="form-control" placeholder="600000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Min CGPA</label>
+        <input type="number" id="pj-cgpa" class="form-control" placeholder="7.0" min="0" max="10" step="0.1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Location</label>
+      <input type="text" id="pj-location" class="form-control" placeholder="Bangalore, India">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Application Deadline</label>
+      <input type="date" id="pj-deadline" class="form-control">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Job Description</label>
+      <textarea id="pj-desc" class="form-control" rows="4" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
+    </div>
+    <div class="flex gap-2" style="margin-top:8px">
+      <button class="btn btn-primary" id="pj-submit" onclick="postJob()">Post Job</button>
+      <button class="btn btn-secondary" onclick="closeModal('post-job-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Status Modal -->
+<div class="modal-overlay" id="status-modal">
+  <div class="modal">
+    <div class="modal-title">📋 Update Application Status</div>
+    <input type="hidden" id="sm-app-id">
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select id="sm-status" class="form-control">
+        <option>Applied</option>
+        <option>Under Review</option>
+        <option>Selected</option>
+        <option>Rejected</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea id="sm-notes" class="form-control" rows="3" placeholder="Add notes…"></textarea>
+    </div>
+    <div class="flex gap-2" style="margin-top:8px">
+      <button class="btn btn-primary" onclick="submitStatus()">Update</button>
+      <button class="btn btn-secondary" onclick="closeModal('status-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let companyJobs = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const u = JSON.parse(localStorage.getItem('cc_user') || 'null');
+  if (!u || u.role !== 'COMPANY') { logout(); return; }
+  await loadCompanyData();
+  showSection('jobs');
+});
+
+function showSection(name) {
+  ['jobs','applicants','profile'].forEach(s => {
+    document.getElementById('sec-' + s).style.display = s === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  event && event.currentTarget && event.currentTarget.classList.add('active');
+  if (name === 'applicants') populateJobSelect();
+  if (name === 'profile') loadProfile();
+}
+
+async function loadCompanyData() {
+  const r = await apiFetch('/company/jobs');
+  if (!r) return;
+  companyJobs = await r.json();
+  renderJobs();
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('stat-jobs').textContent = companyJobs.length;
+  let totalApps = 0, selected = 0, review = 0;
+  companyJobs.forEach(j => {
+    totalApps += j.applicant_count || 0;
+  });
+  document.getElementById('stat-apps').textContent = totalApps;
+  // Selected/review need per-application data; show — until loaded
+  document.getElementById('stat-selected').textContent = '—';
+  document.getElementById('stat-review').textContent = '—';
+}
+
+function renderJobs() {
+  const cont = document.getElementById('jobs-container');
+  if (!companyJobs.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">💼</div><p>You haven\'t posted any jobs yet.</p><button class="btn btn-primary" onclick="openModal(\'post-job-modal\')" style="margin-top:14px">Post Your First Job</button></div>';
+    return;
+  }
+  cont.innerHTML = `<div class="job-grid">${companyJobs.map(jobCard).join('')}</div>`;
+}
+
+function jobCard(j) {
+  return `
+  <div class="job-card">
+    <div class="flex items-center justify-between" style="margin-bottom:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.95rem;color:var(--text-primary)">${j.job_title}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary)">${j.location}</div>
+      </div>
+      <span class="badge ${j.is_open ? 'badge-open' : 'badge-closed'}">${j.is_open ? '● Open' : 'Closed'}</span>
+    </div>
+    <div class="job-meta">
+      <span class="job-meta-item">💰 ${fmtSalary(j.salary)}/yr</span>
+      <span class="job-meta-item">🎓 Min CGPA ${j.min_cgpa}</span>
+      <span class="job-meta-item">📅 ${fmtDate(j.application_deadline)}</span>
+      <span class="job-meta-item">👥 ${j.applicant_count} applicants</span>
+    </div>
+    <div class="flex gap-2" style="margin-top:14px">
+      <button class="btn btn-secondary btn-sm" onclick="viewApplicants(${j.job_id})">View Applicants</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteJob(${j.job_id})">Delete</button>
+    </div>
+  </div>`;
+}
+
+async function postJob() {
+  const btn = document.getElementById('pj-submit');
+  const title    = document.getElementById('pj-title').value.trim();
+  const salary   = document.getElementById('pj-salary').value;
+  const cgpa     = document.getElementById('pj-cgpa').value || '0';
+  const location = document.getElementById('pj-location').value.trim();
+  const deadline = document.getElementById('pj-deadline').value;
+  const desc     = document.getElementById('pj-desc').value.trim();
+
+  if (!title || !salary || !location || !deadline || !desc) {
+    toast('Please fill all required fields', 'error'); return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Posting…';
+  const r = await apiFetch('/jobs/post', {
+    method: 'POST',
+    body: JSON.stringify({ job_title: title, salary, min_cgpa: cgpa, location, application_deadline: deadline, job_description: desc })
+  });
+  if (!r) { btn.disabled = false; btn.textContent = 'Post Job'; return; }
+  const data = await r.json();
+  if (data.success) {
+    toast('Job posted successfully! 🎉', 'success');
+    closeModal('post-job-modal');
+    // Clear form
+    ['pj-title','pj-salary','pj-cgpa','pj-location','pj-deadline','pj-desc'].forEach(id => document.getElementById(id).value = '');
+    await loadCompanyData();
+  } else {
+    toast(data.message || 'Failed to post job', 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Post Job';
+}
+
+async function deleteJob(jobId) {
+  if (!confirm('Are you sure you want to delete this job? All applications will also be removed.')) return;
+  const r = await apiFetch('/jobs/' + jobId, { method: 'DELETE' });
+  if (!r) return;
+  const data = await r.json();
+  if (data.success) { toast('Job deleted', 'success'); loadCompanyData(); }
+  else { toast(data.message || 'Delete failed', 'error'); }
+}
+
+function populateJobSelect() {
+  const sel = document.getElementById('applicant-job-select');
+  sel.innerHTML = '<option value="">Select a job…</option>';
+  companyJobs.forEach(j => {
+    sel.innerHTML += `<option value="${j.job_id}">${j.job_title} (${j.applicant_count} applicants)</option>`;
+  });
+}
+
+function viewApplicants(jobId) {
+  showSection('applicants');
+  document.getElementById('applicant-job-select').value = jobId;
+  loadApplicants();
+}
+
+async function loadApplicants() {
+  const jobId = document.getElementById('applicant-job-select').value;
+  const cont  = document.getElementById('applicants-container');
+  if (!jobId) { cont.innerHTML = ''; return; }
+
+  cont.innerHTML = '<div class="spinner"></div>';
+  const r = await apiFetch('/company/applicants/' + jobId);
+  if (!r) return;
+  const apps = await r.json();
+
+  if (!apps.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><p>No applications yet for this position.</p></div>';
+    return;
+  }
+
+  // Update stats from loaded data
+  let selected = apps.filter(a => a.status === 'Selected').length;
+  let review = apps.filter(a => a.status === 'Under Review').length;
+  document.getElementById('stat-selected').textContent = selected;
+  document.getElementById('stat-review').textContent = review;
+
+  cont.innerHTML = `
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Student</th><th>Department</th><th>CGPA</th><th>Email</th><th>Applied On</th><th>Status</th><th>Action</th>
+      </tr></thead>
+      <tbody>
+        ${apps.map(a => `
+        <tr>
+          <td><strong>${a.student_name || '—'}</strong></td>
+          <td>${a.department || '—'}</td>
+          <td>${a.cgpa || '—'}</td>
+          <td style="font-size:.82rem">${a.student_email || '—'}</td>
+          <td>${fmtDate(a.application_date)}</td>
+          <td>${statusBadge(a.status)}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="openStatusModal(${a.application_id},'${a.status}','${(a.notes||'').replace(/'/g,"\\'")}')">Update</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function openStatusModal(appId, currentStatus, notes) {
+  document.getElementById('sm-app-id').value = appId;
+  document.getElementById('sm-status').value = currentStatus;
+  document.getElementById('sm-notes').value = notes;
+  openModal('status-modal');
+}
+
+async function submitStatus() {
+  const appId  = document.getElementById('sm-app-id').value;
+  const status = document.getElementById('sm-status').value;
+  const notes  = document.getElementById('sm-notes').value;
+
+  const r = await apiFetch('/company/update-status/' + appId, {
+    method: 'PUT',
+    body: JSON.stringify({ status, notes })
+  });
+  if (!r) return;
+  const data = await r.json();
+  if (data.success) {
+    toast('Status updated!', 'success');
+    closeModal('status-modal');
+    loadApplicants();
+  } else {
+    toast(data.message || 'Update failed', 'error');
+  }
+}
+
+async function loadProfile() {
+  const cont = document.getElementById('profile-container');
+  const r = await apiFetch('/company/profile');
+  if (!r) return;
+  const p = await r.json();
+  cont.innerHTML = `
+  <div class="card" style="max-width:600px">
+    <div style="text-align:center;padding:20px 0">
+      <div style="width:80px;height:80px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;margin:0 auto 14px">${(p.company_name||'C')[0]}</div>
+      <div style="font-family:var(--font-head);font-size:1.3rem;font-weight:700">${p.company_name}</div>
+      <div class="tag" style="margin-top:8px">${p.industry}</div>
+    </div>
+    <div class="divider"></div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${[['📧 Email', p.email],['📍 Location', p.location],['🏭 Industry', p.industry],['💼 Jobs Posted', p.job_count]].map(([l,v]) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-muted);font-size:.85rem">${l}</span>
+        <span style="font-weight:600">${v || '—'}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+</script>
+{% endblock %}

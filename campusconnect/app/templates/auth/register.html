@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register | CampusConnect</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+<div class="auth-page">
+
+  <!-- Hero Side -->
+  <div class="auth-panel auth-hero">
+    <div class="grid-bg"></div>
+    <div class="auth-hero-content">
+      <div style="font-size:3.5rem;margin-bottom:20px">🚀</div>
+      <h2 style="background:linear-gradient(135deg,var(--accent-light),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:14px">Join CampusConnect</h2>
+      <p style="font-size:.95rem;color:var(--text-secondary);margin-bottom:28px;line-height:1.7">Create your account and start your recruitment journey — whether you're a student seeking opportunities or a company searching for talent.</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;display:flex;align-items:flex-start;gap:12px">
+          <span style="font-size:1.5rem">🎓</span>
+          <div><div style="font-weight:700;color:var(--text-primary);margin-bottom:3px">For Students</div><div style="font-size:.8rem;color:var(--text-secondary)">Browse curated job listings, apply with one click, track your applications in real-time.</div></div>
+        </div>
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;display:flex;align-items:flex-start;gap:12px">
+          <span style="font-size:1.5rem">🏢</span>
+          <div><div style="font-weight:700;color:var(--text-primary);margin-bottom:3px">For Companies</div><div style="font-size:.8rem;color:var(--text-secondary)">Post job openings, review applicants, manage hiring pipeline efficiently.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Side -->
+  <div class="auth-panel auth-form-panel" style="overflow-y:auto">
+    <div class="auth-form-box">
+
+      <div class="auth-logo">
+        <div class="auth-logo-icon">🎓</div>
+        <div>
+          <div style="font-family:var(--font-head);font-weight:800;font-size:1.1rem;background:linear-gradient(135deg,var(--accent-light),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">CampusConnect</div>
+          <div style="font-size:.7rem;color:var(--text-muted)">Create Account</div>
+        </div>
+      </div>
+
+      <!-- Role Selector -->
+      <div style="margin-bottom:24px">
+        <label class="form-label">I am a…</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="role-btn active" data-role="STUDENT" onclick="selectRole('STUDENT')">
+            <div style="font-size:1.5rem;margin-bottom:4px">🎓</div>
+            <div style="font-weight:700;font-size:.9rem">Student</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">Looking for jobs</div>
+          </div>
+          <div class="role-btn" data-role="COMPANY" onclick="selectRole('COMPANY')">
+            <div style="font-size:1.5rem;margin-bottom:4px">🏢</div>
+            <div style="font-weight:700;font-size:.9rem">Company</div>
+            <div style="font-size:.72rem;color:var(--text-muted)">Hiring talent</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="reg-error" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:var(--radius-md);padding:12px;margin-bottom:16px;font-size:.85rem;color:var(--danger)"></div>
+
+      <!-- Common fields -->
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" id="reg-email" class="form-control" placeholder="you@university.edu">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="reg-password" class="form-control" placeholder="Min 6 characters">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm Password</label>
+          <input type="password" id="reg-confirm" class="form-control" placeholder="Repeat password">
+        </div>
+      </div>
+
+      <!-- Student Fields -->
+      <div id="student-fields">
+        <div class="divider" style="margin:14px 0"></div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">📋 Student Profile</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input type="text" id="s-first" class="form-control" placeholder="Arjun">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input type="text" id="s-last" class="form-control" placeholder="Kumar">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Department</label>
+            <select id="s-dept" class="form-control">
+              <option value="">Select department</option>
+              <option>Computer Science</option>
+              <option>Information Technology</option>
+              <option>Electronics & Communication</option>
+              <option>Mechanical Engineering</option>
+              <option>Civil Engineering</option>
+              <option>Electrical Engineering</option>
+              <option>MBA</option>
+              <option>MCA</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">CGPA</label>
+            <input type="number" id="s-cgpa" class="form-control" placeholder="8.5" min="0" max="10" step="0.1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Phone Number</label>
+            <input type="tel" id="s-phone" class="form-control" placeholder="+91 9876543210">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date of Birth</label>
+            <input type="date" id="s-dob" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <!-- Company Fields -->
+      <div id="company-fields" style="display:none">
+        <div class="divider" style="margin:14px 0"></div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">🏢 Company Profile</div>
+        <div class="form-group">
+          <label class="form-label">Company Name</label>
+          <input type="text" id="c-name" class="form-control" placeholder="Acme Technologies Pvt. Ltd.">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" id="c-location" class="form-control" placeholder="Bangalore, Karnataka">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Industry</label>
+            <select id="c-industry" class="form-control">
+              <option value="">Select industry</option>
+              <option>Information Technology</option>
+              <option>Software Development</option>
+              <option>Banking & Finance</option>
+              <option>Consulting</option>
+              <option>E-Commerce</option>
+              <option>Healthcare</option>
+              <option>Manufacturing</option>
+              <option>Telecom</option>
+              <option>Automotive</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary w-full btn-lg" id="reg-btn" onclick="doRegister()" style="margin-top:16px">
+        Create Account →
+      </button>
+
+      <div class="divider"></div>
+      <p style="text-align:center;font-size:.88rem;color:var(--text-secondary)">
+        Already have an account? <a href="/auth/login">Sign in</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<style>
+.role-btn{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px;text-align:center;cursor:pointer;transition:all .2s;color:var(--text-secondary)}
+.role-btn:hover,.role-btn.active{background:var(--accent-glow);border-color:var(--border-hover);color:var(--text-primary)}
+</style>
+
+<script>
+let selectedRole = 'STUDENT';
+
+function selectRole(role) {
+  selectedRole = role;
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  document.getElementById('student-fields').style.display = role === 'STUDENT' ? 'block' : 'none';
+  document.getElementById('company-fields').style.display = role === 'COMPANY' ? 'block' : 'none';
+}
+
+function toast(msg, type='info') {
+  const icons = {success:'✅',error:'❌',info:'🔔'};
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+
+async function doRegister() {
+  const btn    = document.getElementById('reg-btn');
+  const errDiv = document.getElementById('reg-error');
+  errDiv.style.display = 'none';
+
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const confirm  = document.getElementById('reg-confirm').value;
+
+  if (!email || !password) { errDiv.style.display='block'; errDiv.textContent='Email and password are required.'; return; }
+  if (password !== confirm) { errDiv.style.display='block'; errDiv.textContent='Passwords do not match.'; return; }
+  if (password.length < 6) { errDiv.style.display='block'; errDiv.textContent='Password must be at least 6 characters.'; return; }
+
+  const body = { email, password, role: selectedRole };
+
+  if (selectedRole === 'STUDENT') {
+    body.first_name    = document.getElementById('s-first').value.trim();
+    body.last_name     = document.getElementById('s-last').value.trim();
+    body.department    = document.getElementById('s-dept').value;
+    body.cgpa          = document.getElementById('s-cgpa').value;
+    body.phone         = document.getElementById('s-phone').value.trim();
+    body.date_of_birth = document.getElementById('s-dob').value;
+    if (!body.first_name || !body.last_name || !body.department || !body.cgpa || !body.phone || !body.date_of_birth) {
+      errDiv.style.display='block'; errDiv.textContent='Please fill all student fields.'; return;
+    }
+  } else {
+    body.company_name = document.getElementById('c-name').value.trim();
+    body.location     = document.getElementById('c-location').value.trim();
+    body.industry     = document.getElementById('c-industry').value;
+    if (!body.company_name || !body.location || !body.industry) {
+      errDiv.style.display='block'; errDiv.textContent='Please fill all company fields.'; return;
+    }
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creating account…';
+
+  try {
+    const res  = await fetch('/auth/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast('Account created! Redirecting to login…', 'success');
+      setTimeout(() => window.location.href = '/auth/login', 1500);
+    } else {
+      errDiv.style.display = 'block';
+      errDiv.textContent   = data.message || 'Registration failed.';
+      btn.disabled = false;
+      btn.textContent = 'Create Account →';
+    }
+  } catch (e) {
+    errDiv.style.display = 'block';
+    errDiv.textContent   = 'Server error. Please try again.';
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+  }
+}
+</script>
+</body>
+</html>

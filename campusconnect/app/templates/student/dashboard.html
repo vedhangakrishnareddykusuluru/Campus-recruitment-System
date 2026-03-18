@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard{% endblock %}
+{% block topbar_title %}Student Dashboard{% endblock %}
+
+{% block sidebar_nav %}
+<div class="nav-label">Main</div>
+<div class="nav-item active" onclick="showSection('jobs')"><span class="nav-icon">💼</span> Job Listings</div>
+<div class="nav-item" onclick="showSection('applications')"><span class="nav-icon">📋</span> My Applications</div>
+<div class="nav-item" onclick="showSection('profile')"><span class="nav-icon">👤</span> My Profile</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats Row -->
+<div class="stat-grid" id="student-stats" style="margin-bottom:28px">
+  <div class="stat-card" style="--c:var(--accent)">
+    <div class="stat-icon">💼</div>
+    <div class="stat-value" id="stat-total-jobs">—</div>
+    <div class="stat-label">Open Jobs</div>
+  </div>
+  <div class="stat-card" style="--c:var(--info)">
+    <div class="stat-icon">📤</div>
+    <div class="stat-value" id="stat-applied">—</div>
+    <div class="stat-label">Applied</div>
+  </div>
+  <div class="stat-card" style="--c:var(--success)">
+    <div class="stat-icon">🏆</div>
+    <div class="stat-value" id="stat-selected">—</div>
+    <div class="stat-label">Selected</div>
+  </div>
+  <div class="stat-card" style="--c:var(--warning)">
+    <div class="stat-icon">⏳</div>
+    <div class="stat-value" id="stat-review">—</div>
+    <div class="stat-label">Under Review</div>
+  </div>
+</div>
+
+<!-- ── Jobs Section ──────────────────────────────────────── -->
+<div id="sec-jobs">
+  <div class="page-header">
+    <h2>Job Listings</h2>
+    <p>Discover opportunities matched to your profile</p>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="form-control" id="job-search" placeholder="Search jobs, companies…" oninput="debounceSearch()">
+    </div>
+    <select class="form-control" id="job-industry" onchange="loadJobs()" style="width:180px">
+      <option value="">All Industries</option>
+    </select>
+    <select class="form-control" id="job-sort" onchange="loadJobs()" style="width:160px">
+      <option value="">Latest First</option>
+      <option value="salary">Highest Salary</option>
+    </select>
+  </div>
+
+  <div id="jobs-container"><div class="spinner"></div></div>
+  <div class="pagination" id="jobs-pagination"></div>
+</div>
+
+<!-- ── Applications Section ──────────────────────────────── -->
+<div id="sec-applications" style="display:none">
+  <div class="page-header">
+    <h2>My Applications</h2>
+    <p>Track the status of all your job applications</p>
+  </div>
+  <div id="apps-container"><div class="spinner"></div></div>
+</div>
+
+<!-- ── Profile Section ───────────────────────────────────── -->
+<div id="sec-profile" style="display:none">
+  <div class="page-header">
+    <h2>My Profile</h2>
+    <p>Your academic and personal information</p>
+  </div>
+  <div id="profile-container"><div class="spinner"></div></div>
+</div>
+
+<!-- Job Detail Modal -->
+<div class="modal-overlay" id="job-modal">
+  <div class="modal modal-lg">
+    <div id="job-modal-body"></div>
+    <button class="btn btn-secondary w-full" onclick="closeModal('job-modal')" style="margin-top:16px">✕ Close</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let searchTimer;
+let appliedJobs = new Set();
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const u = JSON.parse(localStorage.getItem('cc_user') || 'null');
+  if (!u || u.role !== 'STUDENT') { logout(); return; }
+  await loadStats();
+  await loadIndustries();
+  loadJobs();
+  showSection('jobs');
+});
+
+function showSection(name) {
+  ['jobs','applications','profile'].forEach(s => {
+    document.getElementById('sec-' + s).style.display = s === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  event && event.currentTarget && event.currentTarget.classList.add('active');
+  if (name === 'applications') loadApplications();
+  if (name === 'profile') loadProfile();
+}
+
+async function loadStats() {
+  const [jobsRes, appsRes] = await Promise.all([
+    apiFetch('/jobs/?per_page=1'),
+    apiFetch('/student/applications')
+  ]);
+  if (!jobsRes || !appsRes) return;
+  const jobData = await jobsRes.json();
+  const apps    = await appsRes.json();
+  document.getElementById('stat-total-jobs').textContent = jobData.total || 0;
+  document.getElementById('stat-applied').textContent    = apps.length;
+  document.getElementById('stat-selected').textContent   = apps.filter(a => a.status === 'Selected').length;
+  document.getElementById('stat-review').textContent     = apps.filter(a => a.status === 'Under Review').length;
+  apps.forEach(a => appliedJobs.add(a.job_id));
+}
+
+async function loadIndustries() {
+  const r = await apiFetch('/jobs/industries');
+  if (!r) return;
+  const industries = await r.json();
+  const sel = document.getElementById('job-industry');
+  industries.forEach(i => { const o = new Option(i, i); sel.appendChild(o); });
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { currentPage = 1; loadJobs(); }, 350);
+}
+
+async function loadJobs(page = currentPage) {
+  currentPage = page;
+  const search   = document.getElementById('job-search').value.trim();
+  const industry = document.getElementById('job-industry').value;
+  const params   = new URLSearchParams({ page, per_page: 9, open_only: true });
+  if (search)   params.append('search', search);
+  if (industry) params.append('industry', industry);
+
+  const cont = document.getElementById('jobs-container');
+  cont.innerHTML = '<div class="spinner"></div>';
+
+  const r = await apiFetch('/jobs/?' + params);
+  if (!r) return;
+  const data = await r.json();
+
+  if (!data.jobs.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">💼</div><p>No jobs found matching your criteria.</p></div>';
+    document.getElementById('jobs-pagination').innerHTML = '';
+    return;
+  }
+
+  cont.innerHTML = `<div class="job-grid">${data.jobs.map(jobCard).join('')}</div>`;
+  renderPagination(data.pages, page, 'loadJobs');
+}
+
+function jobCard(j) {
+  const initial  = (j.company_name || 'C')[0].toUpperCase();
+  const applied  = appliedJobs.has(j.job_id);
+  const cgpaOk   = parseFloat(JSON.parse(localStorage.getItem('cc_profile') || '{}').cgpa || 0) >= j.min_cgpa;
+  return `
+  <div class="job-card">
+    <div class="flex items-center gap-3" style="margin-bottom:12px">
+      <div class="company-logo-placeholder">${initial}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.95rem;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${j.job_title}</div>
+        <div style="font-size:.8rem;color:var(--text-secondary)">${j.company_name}</div>
+      </div>
+      <span class="badge ${j.is_open ? 'badge-open' : 'badge-closed'}">${j.is_open ? '● Open' : 'Closed'}</span>
+    </div>
+    <div class="job-meta">
+      <span class="job-meta-item">📍 ${j.location}</span>
+      <span class="job-meta-item">💰 ${fmtSalary(j.salary)}/yr</span>
+      <span class="job-meta-item">🎓 Min CGPA ${j.min_cgpa}</span>
+      <span class="job-meta-item">📅 ${fmtDate(j.application_deadline)}</span>
+    </div>
+    <div style="font-size:.82rem;color:var(--text-secondary);margin:10px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${j.job_description}</div>
+    <div class="flex gap-2" style="margin-top:14px">
+      <button class="btn btn-secondary btn-sm" onclick="viewJob(${j.job_id})">View Details</button>
+      ${applied
+        ? '<span class="badge badge-applied" style="padding:7px 12px">✓ Applied</span>'
+        : j.is_open
+          ? `<button class="btn btn-primary btn-sm" onclick="applyJob(${j.job_id},this)" ${!cgpaOk?'disabled title="CGPA too low"':''}>Apply Now</button>`
+          : ''
+      }
+    </div>
+  </div>`;
+}
+
+async function viewJob(id) {
+  const r = await apiFetch('/jobs/' + id);
+  if (!r) return;
+  const j = await r.json();
+  const profile = JSON.parse(localStorage.getItem('cc_profile') || '{}');
+  const applied = appliedJobs.has(id);
+  const cgpaOk  = parseFloat(profile.cgpa || 0) >= j.min_cgpa;
+  document.getElementById('job-modal-body').innerHTML = `
+    <div style="margin-bottom:20px">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="company-logo-placeholder" style="width:54px;height:54px;font-size:1.4rem">${(j.company_name||'C')[0]}</div>
+        <div>
+          <div style="font-family:var(--font-head);font-size:1.3rem;font-weight:700">${j.job_title}</div>
+          <div style="color:var(--text-secondary)">${j.company_name} · ${j.industry}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:14px">
+          <div class="text-xs text-muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Salary</div>
+          <div style="font-weight:700;color:var(--accent)">${fmtSalary(j.salary)}/year</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:14px">
+          <div class="text-xs text-muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Min CGPA</div>
+          <div style="font-weight:700">${j.min_cgpa}</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:14px">
+          <div class="text-xs text-muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Location</div>
+          <div style="font-weight:700">📍 ${j.location}</div>
+        </div>
+        <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:14px">
+          <div class="text-xs text-muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Deadline</div>
+          <div style="font-weight:700">${fmtDate(j.application_deadline)}</div>
+        </div>
+      </div>
+      <div class="section-title">📄 Job Description</div>
+      <p style="line-height:1.75;font-size:.9rem;white-space:pre-wrap">${j.job_description}</p>
+      <div style="margin-top:20px">
+        ${applied
+          ? '<div class="btn btn-secondary w-full" style="justify-content:center;cursor:default">✓ Already Applied</div>'
+          : j.is_open
+            ? `<button class="btn btn-primary w-full btn-lg" onclick="applyJob(${j.job_id},this);closeModal('job-modal')" ${!cgpaOk?'disabled':''}>
+                 ${!cgpaOk ? `⚠ CGPA Too Low (need ${j.min_cgpa})` : '🚀 Apply for this Position'}
+               </button>`
+            : '<div class="btn btn-secondary w-full" style="justify-content:center;cursor:default;opacity:.5">Applications Closed</div>'
+        }
+      </div>
+    </div>`;
+  openModal('job-modal');
+}
+
+async function applyJob(jobId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+  const r = await apiFetch('/student/apply/' + jobId, { method: 'POST' });
+  if (!r) return;
+  const data = await r.json();
+  if (data.success) {
+    appliedJobs.add(jobId);
+    toast('Applied successfully! 🎉', 'success');
+    loadJobs();
+    loadStats();
+  } else {
+    toast(data.message || 'Application failed', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply Now'; }
+  }
+}
+
+async function loadApplications() {
+  const cont = document.getElementById('apps-container');
+  cont.innerHTML = '<div class="spinner"></div>';
+  const r = await apiFetch('/student/applications');
+  if (!r) return;
+  const apps = await r.json();
+
+  if (!apps.length) {
+    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>You haven\'t applied to any jobs yet.</p><button class="btn btn-primary" onclick="showSection(\'jobs\')" style="margin-top:14px">Browse Jobs</button></div>';
+    return;
+  }
+
+  cont.innerHTML = `
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Position</th><th>Company</th><th>Applied On</th><th>Status</th><th>Updated</th>
+      </tr></thead>
+      <tbody>
+        ${apps.map(a => `
+        <tr>
+          <td><strong>${a.job_title}</strong></td>
+          <td>${a.company_name || '—'}</td>
+          <td>${fmtDate(a.application_date)}</td>
+          <td>${statusBadge(a.status)}</td>
+          <td style="font-size:.8rem;color:var(--text-muted)">${fmtDate(a.updated_at)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+async function loadProfile() {
+  const cont = document.getElementById('profile-container');
+  const r = await apiFetch('/student/profile');
+  if (!r) return;
+  const p = await r.json();
+  localStorage.setItem('cc_profile', JSON.stringify(p));
+  const cgpaPercent = Math.min((p.cgpa / 10) * 100, 100);
+  cont.innerHTML = `
+  <div class="two-col">
+    <div class="card">
+      <div style="text-align:center;padding:20px 0">
+        <div style="width:80px;height:80px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;margin:0 auto 14px">${p.first_name[0]}</div>
+        <div style="font-family:var(--font-head);font-size:1.3rem;font-weight:700">${p.full_name}</div>
+        <div style="color:var(--text-secondary);margin-top:4px">${p.department}</div>
+        <div style="margin-top:14px;padding:10px 20px;background:var(--accent-glow);border-radius:20px;display:inline-block">
+          <span style="font-family:var(--font-head);font-size:1.4rem;font-weight:800;color:var(--accent)">${p.cgpa}</span>
+          <span style="font-size:.75rem;color:var(--text-muted)"> / 10 CGPA</span>
+        </div>
+        <div style="margin-top:12px"><div class="progress-bar" style="max-width:200px;margin:0 auto"><div class="progress-fill" style="width:${cgpaPercent}%"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">📋 Profile Details</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        ${[['📧 Email', p.email],['📱 Phone', p.phone],['🎂 Date of Birth', fmtDate(p.date_of_birth)],['🎂 Age', p.age + ' years'],['🏛 Department', p.department]].map(([l,v]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text-muted);font-size:.85rem">${l}</span>
+          <span style="font-weight:600">${v || '—'}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPagination(total, current, fn) {
+  const el = document.getElementById('jobs-pagination');
+  if (total <= 1) { el.innerHTML = ''; return; }
+  let html = '';
+  if (current > 1) html += `<button class="page-btn" onclick="${fn}(${current-1})">‹</button>`;
+  for (let i = 1; i <= total; i++) {
+    html += `<button class="page-btn ${i===current?'active':''}" onclick="${fn}(${i})">${i}</button>`;
+  }
+  if (current < total) html += `<button class="page-btn" onclick="${fn}(${current+1})">›</button>`;
+  el.innerHTML = html;
+}
+</script>
+{% endblock %}

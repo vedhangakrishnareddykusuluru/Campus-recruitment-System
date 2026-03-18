@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}CampusConnect{% endblock %} | CampusConnect</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div>
+        <div class="brand-text">CampusConnect</div>
+        <div class="brand-sub">Recruitment Platform</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      {% block sidebar_nav %}{% endblock %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="nav-item" onclick="logout()" style="color:var(--danger)">
+        <span class="nav-icon">🚪</span> Sign Out
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <div class="main-area">
+    <header class="topbar">
+      <div class="flex items-center gap-3">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <div>
+          <div style="font-family:var(--font-head);font-weight:700;font-size:.95rem" id="topbar-title">{% block topbar_title %}Dashboard{% endblock %}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)" id="topbar-date"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <div class="pulse-dot"></div>
+          <span style="font-size:.78rem;color:var(--text-secondary)" id="topbar-user">Loading…</span>
+        </div>
+        <div class="avatar" id="topbar-avatar">?</div>
+      </div>
+    </header>
+
+    <main class="page-content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Sidebar overlay for mobile -->
+<div id="sidebar-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99" onclick="toggleSidebar()"></div>
+
+<script>
+const API = '';
+const token = () => localStorage.getItem('cc_token');
+const user  = () => JSON.parse(localStorage.getItem('cc_user') || 'null');
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() };
+}
+
+async function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  const r = await fetch(url, opts);
+  if (r.status === 401) { logout(); return null; }
+  return r;
+}
+
+function logout() {
+  localStorage.removeItem('cc_token');
+  localStorage.removeItem('cc_user');
+  localStorage.removeItem('cc_profile');
+  window.location.href = '/auth/login';
+}
+
+function toast(msg, type = 'info') {
+  const icons = { success: '✅', error: '❌', info: '🔔' };
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function toggleSidebar() {
+  const s = document.getElementById('sidebar');
+  const o = document.getElementById('sidebar-overlay');
+  s.classList.toggle('open');
+  o.style.display = s.classList.contains('open') ? 'block' : 'none';
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Init topbar
+document.addEventListener('DOMContentLoaded', () => {
+  const u = user();
+  if (!u) { logout(); return; }
+  document.getElementById('topbar-user').textContent = u.email;
+  document.getElementById('topbar-avatar').textContent = u.email[0].toUpperCase();
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+});
+
+function fmtDate(d) { return d ? new Date(d).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }) : '-'; }
+function fmtSalary(s) { return s ? '₹' + Number(s).toLocaleString('en-IN') : '-'; }
+function statusBadge(s) {
+  const m = { 'Applied':'applied','Under Review':'review','Selected':'selected','Rejected':'rejected' };
+  return `<span class="badge badge-${m[s]||'applied'}">${s}</span>`;
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
