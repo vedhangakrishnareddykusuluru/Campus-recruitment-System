@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha-Beta Pruning — Interactive AI Visualizer</title>
+    <meta name="description" content="Interactive AI visualization tool for understanding Alpha-Beta Pruning and Minimax decision-making in real-time.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-particles" id="bgParticles"></div>
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- HEADER -->
+    <header id="mainHeader">
+        <div class="header-inner">
+            <div class="brand">
+                <div class="logo-icon">🧠</div>
+                <div>
+                    <h1>Alpha-Beta Pruning <span class="gradient-text">Visualizer</span></h1>
+                    <p class="tagline">Interactive AI visualization tool for real-time decision-making</p>
+                </div>
+            </div>
+            <div class="header-controls">
+                <div class="mode-toggle" id="learningModeToggle">
+                    <button class="mode-btn active" data-mode="beginner" onclick="setLearningMode('beginner')">
+                        📖 Beginner
+                    </button>
+                    <button class="mode-btn" data-mode="advanced" onclick="setLearningMode('advanced')">
+                        ⚡ Advanced
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- TAB NAVIGATION -->
+    <nav class="tab-nav" id="tabNav">
+        <button class="tab active" data-tab="visualizer" onclick="switchTab('visualizer')">
+            <span class="tab-icon">🔮</span> Visualizer
+        </button>
+        <button class="tab" data-tab="compare" onclick="switchTab('compare')">
+            <span class="tab-icon">📊</span> Compare
+        </button>
+        <button class="tab" data-tab="custom" onclick="switchTab('custom')">
+            <span class="tab-icon">🧩</span> Custom Tree
+        </button>
+        <button class="tab" data-tab="game" onclick="switchTab('game')">
+            <span class="tab-icon">🎮</span> AI vs Human
+        </button>
+    </nav>
+
+    <main>
+        <!-- ===================== TAB 1: VISUALIZER ===================== -->
+        <div class="tab-content active" id="tab-visualizer">
+            <div class="vis-layout">
+                <!-- Left sidebar: inputs + controls -->
+                <aside class="sidebar glass-panel">
+                    <div class="section-title">
+                        <span>🎯</span> Leaf Node Values
+                    </div>
+                    <div class="leaf-inputs" id="leafInputs"></div>
+                    <button class="btn btn-accent btn-sm" onclick="randomizeValues()">🎲 Random</button>
+
+                    <div class="divider"></div>
+
+                    <div class="section-title"><span>⚙️</span> Algorithm</div>
+                    <div class="algo-toggle" id="algoToggle">
+                        <button class="algo-btn active" data-algo="alphabeta" onclick="setAlgorithm('alphabeta')">Alpha-Beta</button>
+                        <button class="algo-btn" data-algo="minimax" onclick="setAlgorithm('minimax')">Minimax</button>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="section-title"><span>▶️</span> Controls</div>
+                    <div class="control-buttons">
+                        <button class="btn btn-primary" id="btnRun" onclick="runAlgorithm()">▶ Run</button>
+                        <button class="btn btn-outline" id="btnReset" onclick="resetAll()">↺ Reset</button>
+                    </div>
+                    <div class="playback-controls" id="playbackControls">
+                        <div class="playback-row">
+                            <button class="ctrl-btn" onclick="stepBack()" title="Previous Step">⏮</button>
+                            <button class="ctrl-btn ctrl-main" id="btnPlayPause" onclick="togglePlay()" title="Play/Pause">▶</button>
+                            <button class="ctrl-btn" onclick="stepForward()" title="Next Step">⏭</button>
+                        </div>
+                        <div class="speed-row">
+                            <span>🐢</span>
+                            <input type="range" id="speedSlider" min="1" max="10" value="5" oninput="updateSpeed(this.value)">
+                            <span>🐇</span>
+                        </div>
+                        <div class="step-info" id="stepInfo">Step 0 / 0</div>
+                    </div>
+
+                    <div class="divider"></div>
+                    <div class="stats-box" id="statsBox">
+                        <div class="stat-item">
+                            <span class="stat-label">Nodes Visited</span>
+                            <span class="stat-value" id="statVisited">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Nodes Pruned</span>
+                            <span class="stat-value stat-red" id="statPruned">—</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Efficiency</span>
+                            <span class="stat-value stat-green" id="statEfficiency">—</span>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Center: Tree visualization -->
+                <div class="main-area">
+                    <!-- Legend -->
+                    <div class="legend-bar">
+                        <div class="legend-item"><span class="dot dot-current"></span> Current</div>
+                        <div class="legend-item"><span class="dot dot-max"></span> MAX</div>
+                        <div class="legend-item"><span class="dot dot-min"></span> MIN</div>
+                        <div class="legend-item"><span class="dot dot-leaf"></span> Leaf</div>
+                        <div class="legend-item"><span class="dot dot-pruned"></span> Pruned</div>
+                    </div>
+
+                    <div class="tree-container glass-panel" id="treeContainer">
+                        <svg id="treeSvg" viewBox="0 0 1100 500"></svg>
+                    </div>
+
+                    <!-- Result banner -->
+                    <div class="result-banner" id="resultBanner">
+                        <span class="result-icon">✅</span>
+                        <span>Optimal Value at Root: <strong id="resultValue">—</strong></span>
+                    </div>
+
+                    <!-- AI Thinking Panel -->
+                    <div class="ai-thinking-panel glass-panel" id="aiThinkingPanel">
+                        <div class="thinking-header">
+                            <div class="thinking-avatar">🤖</div>
+                            <div>
+                                <div class="thinking-title">AI Thinking</div>
+                                <div class="thinking-status" id="thinkingStatus">Waiting to start...</div>
+                            </div>
+                            <div class="thinking-indicator" id="thinkingIndicator">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                        <div class="thinking-content" id="thinkingContent">
+                            <p class="thinking-placeholder">Run the algorithm to see AI's decision-making process...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right sidebar: explanation + log -->
+                <aside class="sidebar glass-panel sidebar-right">
+                    <div class="section-title"><span>💬</span> Step Explanation</div>
+                    <div class="explanation-box" id="explanationBox">
+                        <p class="placeholder-text">Select a step to see detailed explanation...</p>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="section-title"><span>📋</span> Algorithm Log</div>
+                    <div class="log-box" id="logBox">
+                        <p class="placeholder-text">Run the algorithm to see execution log...</p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 2: COMPARE ===================== -->
+        <div class="tab-content" id="tab-compare">
+            <div class="compare-layout">
+                <div class="compare-header glass-panel">
+                    <h2>📊 Algorithm Performance Comparison</h2>
+                    <p>See the difference between pure Minimax and Alpha-Beta Pruning</p>
+                    <div class="compare-inputs">
+                        <div class="leaf-inputs-row" id="compareInputs"></div>
+                        <div class="compare-btns">
+                            <button class="btn btn-accent btn-sm" onclick="randomizeCompareValues()">🎲 Random</button>
+                            <button class="btn btn-primary" onclick="runComparison()">⚡ Run Comparison</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="compare-grid">
+                    <!-- Minimax side -->
+                    <div class="compare-card glass-panel">
+                        <div class="compare-card-header minimax-header">
+                            <h3>Minimax (No Pruning)</h3>
+                            <div class="compare-stats" id="minimaxStats">
+                                <span>Nodes: <strong id="mmNodes">—</strong></span>
+                                <span>Result: <strong id="mmResult">—</strong></span>
+                            </div>
+                        </div>
+                        <div class="compare-tree">
+                            <svg id="minimaxSvg" viewBox="0 0 1100 500"></svg>
+                        </div>
+                    </div>
+
+                    <!-- Alpha-Beta side -->
+                    <div class="compare-card glass-panel">
+                        <div class="compare-card-header alphabeta-header">
+                            <h3>Alpha-Beta Pruning</h3>
+                            <div class="compare-stats" id="abStats">
+                                <span>Nodes: <strong id="abNodes">—</strong></span>
+                                <span>Pruned: <strong id="abPruned">—</strong></span>
+                                <span>Result: <strong id="abResult">—</strong></span>
+                            </div>
+                        </div>
+                        <div class="compare-tree">
+                            <svg id="abSvg" viewBox="0 0 1100 500"></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="compare-chart glass-panel">
+                    <h3>📈 Performance Metrics</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="perfChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 3: CUSTOM TREE ===================== -->
+        <div class="tab-content" id="tab-custom">
+            <div class="custom-layout">
+                <div class="custom-sidebar glass-panel">
+                    <div class="section-title"><span>🧩</span> Tree Builder</div>
+                    <p class="helper-text">Design your own game tree and see how Alpha-Beta Pruning works on it.</p>
+
+                    <div class="divider"></div>
+
+                    <div class="section-title"><span>📐</span> Presets</div>
+                    <div class="preset-buttons">
+                        <button class="btn btn-outline btn-sm" onclick="loadPreset('binary2')">Binary (Depth 2)</button>
+                        <button class="btn btn-outline btn-sm" onclick="loadPreset('binary3')">Binary (Depth 3)</button>
+                        <button class="btn btn-outline btn-sm" onclick="loadPreset('ternary2')">Ternary (Depth 2)</button>
+                        <button class="btn btn-outline btn-sm" onclick="loadPreset('default')">Default Tree</button>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="section-title"><span>🔢</span> Leaf Values</div>
+                    <div class="custom-leaf-inputs" id="customLeafInputs"></div>
+                    <button class="btn btn-accent btn-sm" onclick="randomizeCustomValues()">🎲 Random</button>
+
+                    <div class="divider"></div>
+
+                    <button class="btn btn-primary" onclick="runCustomAlgorithm()">▶ Run on Custom Tree</button>
+                    <button class="btn btn-outline" onclick="resetCustom()">↺ Reset</button>
+
+                    <div class="custom-result" id="customResult"></div>
+                </div>
+                <div class="custom-main">
+                    <div class="tree-container glass-panel">
+                        <svg id="customSvg" viewBox="0 0 1100 500"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 4: GAME ===================== -->
+        <div class="tab-content" id="tab-game">
+            <div class="game-layout">
+                <div class="game-info glass-panel">
+                    <div class="game-header">
+                        <h2>🎮 Play Against AI</h2>
+                        <p>You are the <strong class="gradient-text">Minimizer</strong>. The AI is the <strong style="color:#22d3ee">Maximizer</strong>. Try to reach the lowest possible value!</p>
+                    </div>
+                    <div class="game-scores">
+                        <div class="score-card you-card">
+                            <span class="score-icon">👤</span>
+                            <span class="score-label">You (MIN)</span>
+                            <span class="score-val" id="gameYourScore">—</span>
+                        </div>
+                        <div class="score-card ai-card">
+                            <span class="score-icon">🤖</span>
+                            <span class="score-label">AI (MAX)</span>
+                            <span class="score-val" id="gameAiScore">—</span>
+                        </div>
+                    </div>
+                    <div class="game-status" id="gameStatus">Click "New Game" to start!</div>
+                    <div class="game-buttons">
+                        <button class="btn btn-primary" onclick="startNewGame()">🎮 New Game</button>
+                        <button class="btn btn-outline" id="btnShowAiThought" onclick="toggleGameThinking()" style="display:none">🧠 Show AI Thinking</button>
+                    </div>
+                    <div class="game-thinking glass-panel" id="gameThinking" style="display:none">
+                        <div class="thinking-header">
+                            <div class="thinking-avatar">🤖</div>
+                            <div class="thinking-title">AI Analysis</div>
+                        </div>
+                        <div class="thinking-content" id="gameThinkingContent"></div>
+                    </div>
+                </div>
+                <div class="game-tree-area">
+                    <div class="tree-container glass-panel">
+                        <svg id="gameSvg" viewBox="0 0 1100 500"></svg>
+                    </div>
+                    <div class="game-move-prompt" id="gameMovePrompt" style="display:none">
+                        <span>👆 Click on a <strong>child node</strong> to make your move!</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Alpha-Beta Pruning — Interactive AI Visualization Tool &bull; Built for AI Course</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
