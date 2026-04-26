@@ -91,15 +91,32 @@ CREATE DATABASE campusconnect_db CHARACTER SET utf8mb4;
 mysql -u root -p campusconnect_db < schema.sql
 ```
 
-3. Update `.env`:
+3. Copy env example and update credentials:
+```bash
+cp .env.example .env
+```
+
+4. Update `.env` values:
 ```env
 USE_SQLITE=False
 DB_HOST=localhost
 DB_PORT=3306
-DB_NAME=campusconnect_db
+DB_NAME=campus_recruitment
 DB_USER=root
 DB_PASSWORD=your_password
+SECRET_KEY=your_secret_key
+JWT_SECRET_KEY=your_jwt_secret_key
 ```
+
+> If you already have an existing database named `campus_recruitment`, set `DB_NAME=campus_recruitment` and ensure the MySQL server is reachable from the app host.
+> If the app runs inside a container or Codespace, `localhost` must point to the MySQL service accessible from that container.
+
+5. Seed the database with sample users, companies, jobs, and applications:
+```bash
+python seed_mysql.py
+```
+
+This will load the app schema and insert the provided dataset into the live MySQL database.
 
 ---
 
